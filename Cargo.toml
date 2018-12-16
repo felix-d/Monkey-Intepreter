@@ -1,0 +1,9 @@
+[package]
+name = "interpreter"
+version = "0.1.0"
+authors = ["Felix Descoteaux <flx.descoteaux@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+regex = "0.2.11"
+lazy_static = "1.0"
