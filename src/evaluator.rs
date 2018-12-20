@@ -1,35 +1,86 @@
-use crate::ast::{Node, Expression, Statement, Program};
-use crate::object::{Object};
+use crate::ast::{Expression, Program, Statement, BlockStatement};
+use crate::object::Object;
 
-pub fn eval_program(program: Program) -> Object {
-    for statement in program.statements {
-        return eval_statement(statement);
-    }
-    Object::Null
+pub(crate) trait Eval {
+    fn eval(self) -> Object;
 }
 
-fn eval_statement(statement: Statement) -> Object {
-    match statement {
-        Statement::Expression(expression) => eval_expression(expression),
-        _ => unreachable!()
+impl Eval for Program {
+    fn eval(self) -> Object {
+        self.statements.eval()
     }
 }
 
-fn eval_expression(expression: Expression) -> Object {
-    match expression {
-        Expression::IntegerLiteral(integer) => Object::new_integer(integer),
-        Expression::Prefix { operator, right } => {
-            let right = eval_expression(*right);
-            eval_prefix_expression(operator, right)
-        },
-        Expression::Infix { left, right, operator } => {
-            let left = eval_expression(*left);
-            let right = eval_expression(*right);
-            eval_infix_expression(operator, left, right)
+impl Eval for Vec<Statement> {
+    fn eval(self) -> Object {
+        for statement in self {
+            return statement.eval();
         }
-        Expression::Boolean(true) => Object::Boolean(true),
-        Expression::Boolean(false) => Object::Boolean(false),
-        _ => unreachable!()
+        Object::Null
+    }
+}
+
+impl Eval for Statement {
+    fn eval(self) -> Object {
+        match self {
+            Statement::Expression(expression) => expression.eval(),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Eval for Expression {
+    fn eval(self) -> Object {
+        match self {
+            Expression::IntegerLiteral(integer) => Object::new_integer(integer),
+            Expression::Prefix { operator, right } => {
+                let right = right.eval();
+                eval_prefix_expression(operator, right)
+            }
+            Expression::Infix {
+                left,
+                right,
+                operator,
+            } => {
+                let left = left.eval();
+                let right = right.eval();
+                eval_infix_expression(operator, left, right)
+            }
+            Expression::Boolean(true) => Object::Boolean(true),
+            Expression::Boolean(false) => Object::Boolean(false),
+            Expression::IfExpression {
+                condition,
+                consequence,
+                alternative,
+            } => eval_if_expression(condition, consequence, alternative),
+            _ => unreachable!(),
+        }
+    }
+
+}
+
+impl Eval for BlockStatement {
+    fn eval(self) -> Object {
+        self.0.eval()
+    }
+}
+
+fn eval_if_expression(condition: Box<Expression>, consequence: BlockStatement, alternative: Option<BlockStatement>) -> Object {
+    let condition = condition.eval();
+
+    if is_truthy(condition) {
+        consequence.eval()
+    } else if let Some(alternative) = alternative {
+        alternative.eval()
+    } else {
+        Object::Null
+    }
+}
+
+fn is_truthy(val: Object) -> bool {
+    match val {
+        Object::Boolean(false) | Object::Null => false,
+        _ => true,
     }
 }
 
@@ -37,23 +88,19 @@ fn eval_prefix_expression(operator: String, right: Object) -> Object {
     match operator.as_ref() {
         "!" => eval_bang_expression(right),
         "-" => eval_minus_prefix_expression(right),
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 
 fn eval_infix_expression(operator: String, left: Object, right: Object) -> Object {
     match left {
-        Object::Integer(left) => {
-            match right {
-                Object::Integer(right) => eval_infix_integer_expression(operator, left, right),
-                _ => panic!(),
-            }
+        Object::Integer(left) => match right {
+            Object::Integer(right) => eval_infix_integer_expression(operator, left, right),
+            _ => panic!(),
         },
-        Object::Boolean(left) => {
-            match right {
-                Object::Boolean(right) => eval_infix_bool_expression(operator, left, right),
-                _ => panic!()
-            }
+        Object::Boolean(left) => match right {
+            Object::Boolean(right) => eval_infix_bool_expression(operator, left, right),
+            _ => panic!(),
         },
         _ => panic!(),
     }
@@ -69,16 +116,15 @@ fn eval_infix_integer_expression(operator: String, left: i64, right: i64) -> Obj
         ">" => Object::Boolean(left > right),
         "==" => Object::Boolean(left == right),
         "!=" => Object::Boolean(left != right),
-        _ => panic!()
+        _ => panic!(),
     }
-
 }
 
 fn eval_infix_bool_expression(operator: String, left: bool, right: bool) -> Object {
     match operator.as_ref() {
         "==" => Object::Boolean(left == right),
         "!=" => Object::Boolean(left != right),
-        _ => panic!()
+        _ => panic!(),
     }
 }
 
@@ -99,43 +145,43 @@ fn eval_minus_prefix_expression(right: Object) -> Object {
 
 #[cfg(test)]
 mod tests {
-    use crate::object::Object;
+    use super::Eval;
     use crate::lexer::Lexer;
+    use crate::object::Object;
     use crate::parser::Parser;
-    use super::eval_program;
 
     fn test_eval(input: String) -> Object {
         let lexer = Lexer::new(&input);
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
-        eval_program(program)
+        program.eval()
     }
 
     #[test]
     fn test_eval_integer_expression() {
         let cases = vec![
-            ("5".to_string(), 5),
-            ("10".to_string(), 10),
-            ("-5".to_string(), -5),
-            ("-10".to_string(), -10),
-            ("5 + 5 + 5 + 5 - 10".to_string(), 10),
-            ("2 * 2 * 2 * 2 * 2".to_string(), 32),
-            ("-50 + 100 + -50".to_string(), 0),
-            ("5 * 2 + 10".to_string(), 20),
-            ("5 + 2 * 10".to_string(), 25),
-            ("20 + 2 * -10".to_string(), 0),
-            ("50 / 2 * 2 + 10".to_string(), 60),
-            ("2 * (5 + 10)".to_string(), 30),
-            ("3 * 3 * 3 + 10".to_string(), 37),
-            ("3 * (3 * 3) + 10".to_string(), 37),
-            ("(5 + 10 * 2 + 15 / 3) * 2 + -10".to_string(), 50),
+            ("5", 5),
+            ("10", 10),
+            ("-5", -5),
+            ("-10", -10),
+            ("5 + 5 + 5 + 5 - 10", 10),
+            ("2 * 2 * 2 * 2 * 2", 32),
+            ("-50 + 100 + -50", 0),
+            ("5 * 2 + 10", 20),
+            ("5 + 2 * 10", 25),
+            ("20 + 2 * -10", 0),
+            ("50 / 2 * 2 + 10", 60),
+            ("2 * (5 + 10)", 30),
+            ("3 * 3 * 3 + 10", 37),
+            ("3 * (3 * 3) + 10", 37),
+            ("(5 + 10 * 2 + 15 / 3) * 2 + -10", 50),
         ];
 
         for (input, expected) in cases {
-            let object = test_eval(input);
+            let object = test_eval(input.to_string());
             match object {
                 Object::Integer(value) => assert_eq!(expected, value),
-                _ => unreachable!()
+                _ => unreachable!(),
             }
         }
     }
@@ -143,34 +189,34 @@ mod tests {
     #[test]
     fn test_eval_bool_expression() {
         let cases = vec![
-            ("true".to_string(), true),
-            ("false".to_string(), false),
-            ("true".to_string(), true),
-            ("false".to_string(), false),
-            ("1 < 2".to_string(), true),
-            ("1 > 2".to_string(), false),
-            ("1 < 1".to_string(), false),
-            ("1 > 1".to_string(), false),
-            ("1 == 1".to_string(), true),
-            ("1 != 1".to_string(), false),
-            ("1 == 2".to_string(), false),
-            ("1 != 2".to_string(), true),
-            ("true == true".to_string(), true),
-            ("false == false".to_string(), true),
-            ("true == false".to_string(), false),
-            ("true != false".to_string(), true),
-            ("false != true".to_string(), true),
-            ("(1 < 2) == true".to_string(), true),
-            ("(1 < 2) == false".to_string(), false),
-            ("(1 > 2) == true".to_string(), false),
-            ("(1 > 2) == false".to_string(), true),
+            ("true", true),
+            ("false", false),
+            ("true", true),
+            ("false", false),
+            ("1 < 2", true),
+            ("1 > 2", false),
+            ("1 < 1", false),
+            ("1 > 1", false),
+            ("1 == 1", true),
+            ("1 != 1", false),
+            ("1 == 2", false),
+            ("1 != 2", true),
+            ("true == true", true),
+            ("false == false", true),
+            ("true == false", false),
+            ("true != false", true),
+            ("false != true", true),
+            ("(1 < 2) == true", true),
+            ("(1 < 2) == false", false),
+            ("(1 > 2) == true", false),
+            ("(1 > 2) == false", true),
         ];
 
         for (input, expected) in cases {
-            let object = test_eval(input);
+            let object = test_eval(input.to_string());
             match object {
                 Object::Boolean(actual) => assert_eq!(expected, actual),
-                _ => unreachable!()
+                _ => unreachable!(),
             }
         }
     }
@@ -178,19 +224,41 @@ mod tests {
     #[test]
     fn test_eval_bang_expression() {
         let cases = vec![
-            ("!true".to_string(), false),
-            ("!false".to_string(), true),
-            ("!5".to_string(), false),
-            ("!!true".to_string(), true),
-            ("!!false".to_string(), false),
-            ("!!5".to_string(), true),
+            ("!true", false),
+            ("!false", true),
+            ("!5", false),
+            ("!!true", true),
+            ("!!false", false),
+            ("!!5", true),
         ];
 
         for (input, expected) in cases {
-            let object = test_eval(input);
+            let object = test_eval(input.to_string());
             match object {
                 Object::Boolean(actual) => assert_eq!(expected, actual),
-                _ => unreachable!()
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_eval_if_else_expression() {
+        let cases = vec![
+            ("if (true) { 10 }", Some(10)),
+            ("if (false) { 10 }", None),
+            ("if (1) { 10 }", Some(10)),
+            ("if (1 < 2) { 10 }", Some(10)),
+            ("if (1 > 2) { 10 }", None),
+            ("if (1 > 2) { 10 } else { 20 }", Some(20)),
+            ("if (1 < 2) { 10 } else { 20 }", Some(10)),
+        ];
+
+        for (input, expected) in cases {
+            let object = test_eval(input.to_string());
+            match object {
+                Object::Integer(actual) => assert_eq!(expected, Some(actual)),
+                Object::Null => assert_eq!(expected, None),
+                _ => unreachable!(),
             }
         }
     }

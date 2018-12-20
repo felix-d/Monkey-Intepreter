@@ -1,11 +1,5 @@
 use std::fmt;
 
-pub enum Node {
-    Program(Program),
-    Expression(Expression),
-    Statement(Statement),
-}
-
 pub struct Program {
     pub statements: Vec<Statement>,
 }
@@ -118,7 +112,7 @@ impl Expression {
 }
 
 #[derive(PartialEq)]
-pub struct BlockStatement(Vec<Statement>);
+pub struct BlockStatement(pub Vec<Statement>);
 
 impl BlockStatement {
     pub fn new(statements: Vec<Statement>) -> Self {

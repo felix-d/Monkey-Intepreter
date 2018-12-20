@@ -1,6 +1,6 @@
 use crate::lexer::Lexer;
 use crate::parser::Parser;
-use crate::evaluator::eval_program;
+use crate::evaluator::Eval;
 use std::io::{stdin, stdout, Write};
 
 const PROMPT: &str = "Monkey>";
@@ -27,7 +27,7 @@ impl Repl {
                     let lexer = Lexer::new(&input);
                     let mut parser = Parser::new(lexer);
                     let program = parser.parse_program();
-                    let evaluated = eval_program(program);
+                    let evaluated = program.eval();
                     println!("{:?}", evaluated);
                 }
                 Err(error) => println!("Error: {}", error),
