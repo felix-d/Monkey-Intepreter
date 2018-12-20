@@ -1,5 +1,11 @@
 use std::fmt;
 
+pub enum Node {
+    Program(Program),
+    Expression(Expression),
+    Statement(Statement),
+}
+
 pub struct Program {
     pub statements: Vec<Statement>,
 }
@@ -165,8 +171,8 @@ impl fmt::Debug for Expression {
             Expression::FunctionLiteral { parameters, body } => {
                 let params = parameters
                     .iter()
-                    .map(|param| format!("{:?}", param))
-                    .collect::<Vec<String>>();
+                    .map(|param| format!("{}", param))
+                    .collect::<Vec<Identifier>>();
                 write!(f, "fn ({}) {:?}", params.join(", "), body)
             }
             Expression::CallExpression {
@@ -176,7 +182,7 @@ impl fmt::Debug for Expression {
                 let arguments = arguments
                     .iter()
                     .map(|arg| format!("{:?}", arg))
-                    .collect::<Vec<String>>()
+                    .collect::<Vec<Identifier>>()
                     .join(", ");
                 write!(f, "{:?}({})", function, arguments)
             }

@@ -24,7 +24,7 @@ macro_rules! expect_peek {
     };
 }
 
-struct Parser<'a> {
+pub(crate) struct Parser<'a> {
     lexer: Lexer<'a>,
     current_token: Option<Token>,
     peek_token: Option<Token>,

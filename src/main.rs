@@ -7,6 +7,8 @@ mod lexer;
 mod parser;
 mod repl;
 mod token;
+mod object;
+mod evaluator;
 
 use crate::repl::Repl;
 
