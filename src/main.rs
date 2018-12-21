@@ -9,6 +9,7 @@ mod repl;
 mod token;
 mod object;
 mod evaluator;
+mod environment;
 
 use crate::repl::Repl;
 

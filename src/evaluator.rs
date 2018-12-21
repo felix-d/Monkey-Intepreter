@@ -1,40 +1,81 @@
-use crate::ast::{Expression, Program, Statement, BlockStatement};
-use crate::object::Object;
+use crate::ast::{BlockStatement, Expression, Program, Statement};
+use crate::object::{Object, Unwrap};
+use crate::environment::Environment;
+
+macro_rules! check_err {
+    ($expr:expr) => {
+        if let Object::Error(_) = $expr {
+            return $expr;
+        }
+    };
+}
 
 pub(crate) trait Eval {
-    fn eval(self) -> Object;
+    fn eval(self, env: Environment) -> Object;
 }
 
 impl Eval for Program {
-    fn eval(self) -> Object {
-        self.statements.eval()
+    fn eval(self, env: Environment) -> Object {
+        let mut result = Object::Null;
+
+        for statement in self.statements {
+            result = statement.eval(env.clone());
+
+            match result {
+                Object::ReturnValue(value) => return *value,
+                Object::Error(_) => return result,
+                _ => (),
+            }
+        }
+
+        result
     }
 }
 
-impl Eval for Vec<Statement> {
-    fn eval(self) -> Object {
-        for statement in self {
-            return statement.eval();
+impl Eval for BlockStatement {
+    fn eval(self, env: Environment) -> Object {
+        let mut result = Object::Null;
+
+        for statement in self.0 {
+            result = statement.eval(env.clone());
+
+            match result {
+                Object::ReturnValue(_) | Object::Error(_) => return result,
+                _ => (),
+            }
         }
-        Object::Null
+
+        result
     }
 }
 
 impl Eval for Statement {
-    fn eval(self) -> Object {
+    fn eval(self, mut env: Environment) -> Object {
         match self {
-            Statement::Expression(expression) => expression.eval(),
+            Statement::Return(expression) => {
+                let value = expression.eval(env);
+                check_err!(value);
+                Object::new_return_value(value)
+            }
+            Statement::Expression(expression) => expression.eval(env),
+            Statement::Let { name, value } => {
+                let value = value.eval(env.clone());
+                check_err!(value);
+                env.set(name, value.clone());
+                value
+            }
             _ => unreachable!(),
         }
     }
 }
 
 impl Eval for Expression {
-    fn eval(self) -> Object {
+    fn eval(self, env: Environment) -> Object {
         match self {
             Expression::IntegerLiteral(integer) => Object::new_integer(integer),
             Expression::Prefix { operator, right } => {
-                let right = right.eval();
+                let right = right.eval(env);
+                check_err!(right);
                 eval_prefix_expression(operator, right)
             }
             Expression::Infix {
@@ -42,8 +83,12 @@ impl Eval for Expression {
                 right,
                 operator,
             } => {
-                let left = left.eval();
-                let right = right.eval();
+                let left = left.eval(env.clone());
+                check_err!(left);
+
+                let right = right.eval(env);
+                check_err!(right);
+
                 eval_infix_expression(operator, left, right)
             }
             Expression::Boolean(true) => Object::Boolean(true),
@@ -52,26 +97,34 @@ impl Eval for Expression {
                 condition,
                 consequence,
                 alternative,
-            } => eval_if_expression(condition, consequence, alternative),
+            } => eval_if_expression(condition, consequence, alternative, env),
+            Expression::Identifier(identifier) => eval_identifier(identifier, env),
             _ => unreachable!(),
         }
     }
-
 }
 
-impl Eval for BlockStatement {
-    fn eval(self) -> Object {
-        self.0.eval()
+fn eval_identifier(identifier: String, env: Environment) -> Object {
+    match env.get(&identifier) {
+        Some(val) => val,
+        None => Object::new_error(format!("identifier not found: {}", identifier)),
     }
+
 }
 
-fn eval_if_expression(condition: Box<Expression>, consequence: BlockStatement, alternative: Option<BlockStatement>) -> Object {
-    let condition = condition.eval();
+fn eval_if_expression(
+    condition: Box<Expression>,
+    consequence: BlockStatement,
+    alternative: Option<BlockStatement>,
+    env: Environment,
+) -> Object {
+    let condition = condition.eval(env.clone());
+    check_err!(condition);
 
     if is_truthy(condition) {
-        consequence.eval()
+        consequence.eval(env)
     } else if let Some(alternative) = alternative {
-        alternative.eval()
+        alternative.eval(env)
     } else {
         Object::Null
     }
@@ -88,43 +141,66 @@ fn eval_prefix_expression(operator: String, right: Object) -> Object {
     match operator.as_ref() {
         "!" => eval_bang_expression(right),
         "-" => eval_minus_prefix_expression(right),
-        _ => unreachable!(),
+        _ => Object::new_error(format!(
+            "unknown operator: {}{}",
+            operator,
+            right.type_name()
+        )),
     }
 }
 
 fn eval_infix_expression(operator: String, left: Object, right: Object) -> Object {
-    match left {
-        Object::Integer(left) => match right {
-            Object::Integer(right) => eval_infix_integer_expression(operator, left, right),
-            _ => panic!(),
-        },
-        Object::Boolean(left) => match right {
-            Object::Boolean(right) => eval_infix_bool_expression(operator, left, right),
-            _ => panic!(),
-        },
-        _ => panic!(),
+    if left.is_integer() && right.is_integer() {
+        return eval_infix_integer_expression(operator, left, right);
+    }
+
+    if left.is_bool() && right.is_bool() {
+        return eval_infix_bool_expression(operator, left, right);
+    }
+
+    Object::new_error(format!(
+        "type mismatch: {} {} {}",
+        left.type_name(),
+        operator,
+        right.type_name()
+    ))
+}
+
+fn eval_infix_integer_expression(operator: String, left: Object, right: Object) -> Object {
+    let left_val: i64 = left.unwrap();
+    let right_val: i64 = right.unwrap();
+
+    match operator.as_ref() {
+        "+" => Object::Integer(left_val + right_val),
+        "-" => Object::Integer(left_val - right_val),
+        "/" => Object::Integer(left_val / right_val),
+        "*" => Object::Integer(left_val * right_val),
+        "<" => Object::Boolean(left_val < right_val),
+        ">" => Object::Boolean(left_val > right_val),
+        "==" => Object::Boolean(left_val == right_val),
+        "!=" => Object::Boolean(left_val != right_val),
+        _ => Object::new_error(format!(
+            "unknown operator: {} {} {}",
+            left.type_name(),
+            operator,
+            right.type_name(),
+        )),
     }
 }
 
-fn eval_infix_integer_expression(operator: String, left: i64, right: i64) -> Object {
-    match operator.as_ref() {
-        "+" => Object::Integer(left + right),
-        "-" => Object::Integer(left - right),
-        "/" => Object::Integer(left / right),
-        "*" => Object::Integer(left * right),
-        "<" => Object::Boolean(left < right),
-        ">" => Object::Boolean(left > right),
-        "==" => Object::Boolean(left == right),
-        "!=" => Object::Boolean(left != right),
-        _ => panic!(),
-    }
-}
+fn eval_infix_bool_expression(operator: String, left: Object, right: Object) -> Object {
+    let left_val: bool = left.unwrap();
+    let right_val: bool = right.unwrap();
 
-fn eval_infix_bool_expression(operator: String, left: bool, right: bool) -> Object {
     match operator.as_ref() {
-        "==" => Object::Boolean(left == right),
-        "!=" => Object::Boolean(left != right),
-        _ => panic!(),
+        "==" => Object::Boolean(left_val == right_val),
+        "!=" => Object::Boolean(left_val != right_val),
+        _ => Object::new_error(format!(
+            "unknown operator: {} {} {}",
+            left.type_name(),
+            operator,
+            right.type_name(),
+        )),
     }
 }
 
@@ -139,7 +215,7 @@ fn eval_bang_expression(right: Object) -> Object {
 fn eval_minus_prefix_expression(right: Object) -> Object {
     match right {
         Object::Integer(value) => Object::Integer(-value),
-        _ => panic!(),
+        _ => Object::new_error(format!("unknown operator: -{}", right.type_name())),
     }
 }
 
@@ -149,12 +225,14 @@ mod tests {
     use crate::lexer::Lexer;
     use crate::object::Object;
     use crate::parser::Parser;
+    use crate::environment::Environment;
 
     fn test_eval(input: String) -> Object {
         let lexer = Lexer::new(&input);
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
-        program.eval()
+        let mut env = Environment::new();
+        program.eval(env)
     }
 
     #[test]
@@ -259,6 +337,90 @@ mod tests {
                 Object::Integer(actual) => assert_eq!(expected, Some(actual)),
                 Object::Null => assert_eq!(expected, None),
                 _ => unreachable!(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_return_statements() {
+        let cases = vec![
+            ("return 10;", 10),
+            ("return 10; 9;", 10),
+            ("return 2 * 5; 9;", 10),
+            ("9; return 2 * 5; 9;", 10),
+            (
+                r"
+                  if (10 > 1) {
+                  if (10 > 1) {
+                    return 10;
+                  }
+
+                  return 1;
+                }
+            ",
+                10,
+            ),
+        ];
+
+        for (input, expected) in cases {
+            let object = test_eval(input.to_string());
+            match object {
+                Object::Integer(actual) => assert_eq!(expected, actual),
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_error_handling() {
+        let cases = vec![
+            ("5 + true;", "type mismatch: INTEGER + BOOLEAN"),
+            ("5 + true; 5;", "type mismatch: INTEGER + BOOLEAN"),
+            ("-true", "unknown operator: -BOOLEAN"),
+            ("true + false;", "unknown operator: BOOLEAN + BOOLEAN"),
+            ("5; true + false; 5", "unknown operator: BOOLEAN + BOOLEAN"),
+            (
+                "if (10 > 1) { true + false; }",
+                "unknown operator: BOOLEAN + BOOLEAN",
+            ),
+            (
+                r"
+                  if (10 > 1) {
+                    if (10 > 1) {
+                      return true + false;
+                    }
+
+                    return 1;
+                  }
+             ",
+                "unknown operator: BOOLEAN + BOOLEAN",
+            ),
+            ("foobar", "identifier not found: foobar"),
+        ];
+
+        for (input, expected) in cases {
+            let object = test_eval(input.to_string());
+            match object {
+                Object::Error(actual) => assert_eq!(expected, *actual),
+                _ => unreachable!("Got {:?}, but expecting Object::Error.", object),
+            }
+        }
+    }
+
+    #[test]
+    fn test_let_statements() {
+        let cases = vec![
+            ("let a = 5; a;", 5),
+            ("let a = 5 * 5; a;", 25),
+            ("let a = 5; let b = a; b;", 5),
+            ("let a = 5; let b = a; let c = a + b + 5; c;", 15),
+        ];
+
+        for (input, expected) in cases {
+            let object = test_eval(input.to_string());
+            match object {
+                Object::Integer(actual) => assert_eq!(expected, actual),
+                _ => unreachable!("Got {:?}, but expecting Object::Integer.", object),
             }
         }
     }

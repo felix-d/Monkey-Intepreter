@@ -242,7 +242,6 @@ impl<'a> Parser<'a> {
         self.next_token();
 
         let expr = self.parse_expression(Precedence::Lowest);
-        println!("{:?}", expr);
 
         expect_peek!(self, Token::RParen);
 
@@ -602,7 +601,7 @@ mod tests {
 
         for (input, expected) in tests {
             let program = init_program(input);
-            assert_eq!(format!("{:?}", program), expected);
+            assert_eq!(format!("{}", program), expected);
         }
     }
 

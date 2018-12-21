@@ -1,12 +1,13 @@
 use std::fmt;
 
+#[derive(Debug)]
 pub struct Program {
     pub statements: Vec<Statement>,
 }
 
 pub type Identifier = String;
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     Let { name: Identifier, value: Expression },
     Return(Expression),
@@ -30,7 +31,7 @@ impl Statement {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Expression {
     IntegerLiteral(i64),
     Identifier(Identifier),
@@ -111,7 +112,7 @@ impl Expression {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct BlockStatement(pub Vec<Statement>);
 
 impl BlockStatement {
@@ -120,45 +121,45 @@ impl BlockStatement {
     }
 }
 
-impl fmt::Debug for Program {
+impl fmt::Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for statement in &self.statements {
-            write!(f, "{:?}", statement)?;
+            write!(f, "{}", statement)?;
         }
         Ok(())
     }
 }
 
-impl fmt::Debug for Statement {
+impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Statement::Let { name, value } => write!(f, "let {} = {:?};", name, value),
-            Statement::Return(expression) => write!(f, "return {:?};", expression),
-            Statement::Expression(expression) => write!(f, "{:?}", expression),
+            Statement::Let { name, value } => write!(f, "let {} = {};", name, value),
+            Statement::Return(expression) => write!(f, "return {};", expression),
+            Statement::Expression(expression) => write!(f, "{}", expression),
         }
     }
 }
 
-impl fmt::Debug for Expression {
+impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Expression::IntegerLiteral(literal) => write!(f, "{}", literal),
             Expression::Identifier(identifier) => write!(f, "{}", identifier),
-            Expression::Prefix { operator, right } => write!(f, "({}{:?})", operator, right),
+            Expression::Prefix { operator, right } => write!(f, "({}{})", operator, right),
             Expression::Infix {
                 left,
                 right,
                 operator,
-            } => write!(f, "({:?} {} {:?})", left, operator, right),
+            } => write!(f, "({} {} {})", left, operator, right),
             Expression::Boolean(value) => write!(f, "{}", value),
             Expression::IfExpression {
                 condition,
                 consequence,
                 alternative,
             } => {
-                write!(f, "if ({:?}) {:?}", condition, consequence)?;
+                write!(f, "if ({}) {}", condition, consequence)?;
                 match alternative {
-                    Some(ref alternative) => write!(f, "else {:?}", alternative),
+                    Some(ref alternative) => write!(f, "else {}", alternative),
                     None => Ok(()),
                 }
             }
@@ -167,7 +168,7 @@ impl fmt::Debug for Expression {
                     .iter()
                     .map(|param| format!("{}", param))
                     .collect::<Vec<Identifier>>();
-                write!(f, "fn ({}) {:?}", params.join(", "), body)
+                write!(f, "fn ({}) {}", params.join(", "), body)
             }
             Expression::CallExpression {
                 function,
@@ -175,21 +176,21 @@ impl fmt::Debug for Expression {
             } => {
                 let arguments = arguments
                     .iter()
-                    .map(|arg| format!("{:?}", arg))
+                    .map(|arg| format!("{}", arg))
                     .collect::<Vec<Identifier>>()
                     .join(", ");
-                write!(f, "{:?}({})", function, arguments)
+                write!(f, "{}({})", function, arguments)
             }
         }
     }
 }
 
-impl fmt::Debug for BlockStatement {
+impl fmt::Display for BlockStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let statements = self
             .0
             .iter()
-            .map(|statement| format!("{:?}", statement))
+            .map(|statement| format!("{}", statement))
             .collect::<Vec<String>>()
             .join("; ");
 

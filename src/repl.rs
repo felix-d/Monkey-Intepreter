@@ -1,6 +1,7 @@
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::evaluator::Eval;
+use crate::environment::Environment;
 use std::io::{stdin, stdout, Write};
 
 const PROMPT: &str = "Monkey>";
@@ -18,6 +19,7 @@ impl Repl {
     }
 
     fn evalloop() {
+        let mut env = Environment::new();
         loop {
             print!("{} ", PROMPT);
             stdout().flush().unwrap();
@@ -27,8 +29,9 @@ impl Repl {
                     let lexer = Lexer::new(&input);
                     let mut parser = Parser::new(lexer);
                     let program = parser.parse_program();
-                    let evaluated = program.eval();
-                    println!("{:?}", evaluated);
+                    let env = Environment::new();
+                    let evaluated = program.eval(env);
+                    println!("{}", evaluated);
                 }
                 Err(error) => println!("Error: {}", error),
             }
