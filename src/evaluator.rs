@@ -1,6 +1,7 @@
-use crate::ast::{BlockStatement, Expression, Program, Statement};
-use crate::object::{Object, Unwrap};
+use crate::ast::{BlockStatement, Expression, Program, Statement, Identifier};
 use crate::environment::Environment;
+use crate::object::{Object, Unwrap};
+use std::rc::Rc;
 
 macro_rules! check_err {
     ($expr:expr) => {
@@ -37,6 +38,24 @@ impl Eval for BlockStatement {
         let mut result = Object::Null;
 
         for statement in self.0 {
+            result = statement.eval(env.clone());
+
+            match result {
+                Object::ReturnValue(_) | Object::Error(_) => return result,
+                _ => (),
+            }
+        }
+
+        result
+    }
+}
+
+impl Eval for Rc<BlockStatement> {
+    fn eval(self, env: Environment) -> Object {
+        let mut result = Object::Null;
+
+        for statement in &self.0 {
+            let statement = statement.clone();
             result = statement.eval(env.clone());
 
             match result {
@@ -99,9 +118,56 @@ impl Eval for Expression {
                 alternative,
             } => eval_if_expression(condition, consequence, alternative, env),
             Expression::Identifier(identifier) => eval_identifier(identifier, env),
+            Expression::FunctionLiteral { params, body } => {
+                Object::new_function(Rc::new(params), Rc::new(body), env.clone())
+            }
+            Expression::CallExpression { function, args } => {
+                let value = function.eval(env.clone());
+                check_err!(value);
+
+                let mut args = eval_expressions(args, env);
+
+                if args.len() == 1 {
+                    if let Object::Error(_) = args[0] {
+                        return args.remove(0);
+                    }
+                }
+
+                apply_function(value, args)
+            }
             _ => unreachable!(),
         }
     }
+}
+
+fn apply_function(function: Object, args: Vec<Object>) -> Object {
+    match function {
+        Object::Function { body, params, env } => {
+            let extended_env = extended_function_env(params, env, args);
+            body.eval(extended_env).unwrap()
+        }
+        _ => Object::new_error(format!("not a function: {}", function.type_name())),
+    }
+}
+
+fn extended_function_env(params: Rc<Vec<Identifier>>, env: Environment, args: Vec<Object>) -> Environment {
+    let mut env = Environment::new_enclosed_environment(env.clone());
+    for (i, param) in params.iter().enumerate() {
+        env.set(param.clone(), args[i].clone());
+    }
+    env
+}
+
+fn eval_expressions(arguments: Vec<Expression>, env: Environment) -> Vec<Object> {
+    let mut result = vec![];
+    for arg in arguments {
+        let value = arg.eval(env.clone());
+        if let Object::Error(_) = value {
+            return vec![value];
+        }
+        result.push(value);
+    }
+    result
 }
 
 fn eval_identifier(identifier: String, env: Environment) -> Object {
@@ -109,7 +175,6 @@ fn eval_identifier(identifier: String, env: Environment) -> Object {
         Some(val) => val,
         None => Object::new_error(format!("identifier not found: {}", identifier)),
     }
-
 }
 
 fn eval_if_expression(
@@ -222,10 +287,10 @@ fn eval_minus_prefix_expression(right: Object) -> Object {
 #[cfg(test)]
 mod tests {
     use super::Eval;
+    use crate::environment::Environment;
     use crate::lexer::Lexer;
     use crate::object::Object;
     use crate::parser::Parser;
-    use crate::environment::Environment;
 
     fn test_eval(input: String) -> Object {
         let lexer = Lexer::new(&input);
@@ -402,7 +467,7 @@ mod tests {
             let object = test_eval(input.to_string());
             match object {
                 Object::Error(actual) => assert_eq!(expected, *actual),
-                _ => unreachable!("Got {:?}, but expecting Object::Error.", object),
+                _ => unreachable!("Got {:?}, but expected Object::Error.", object),
             }
         }
     }
@@ -420,7 +485,41 @@ mod tests {
             let object = test_eval(input.to_string());
             match object {
                 Object::Integer(actual) => assert_eq!(expected, actual),
-                _ => unreachable!("Got {:?}, but expecting Object::Integer.", object),
+                _ => unreachable!("Got {:?}, but expected Object::Integer.", object),
+            }
+        }
+    }
+
+    #[test]
+    fn test_function_object() {
+        let input = r"fn(x) { x + 2; };";
+        let object = test_eval(input.to_string());
+        match object {
+            Object::Function { params, body, .. } => {
+                assert_eq!(1, params.len());
+                assert_eq!("x", params[0]);
+                assert_eq!("(x + 2)", format!("{}", body));
+            }
+            _ => unreachable!("Got {:?}, but expected Object::Function."),
+        }
+    }
+
+    #[test]
+    fn test_function_application() {
+        let cases = vec![
+            ("let identity = fn(x) { x; }; identity(5);", 5),
+            ("let identity = fn(x) { return x; }; identity(5);", 5),
+            ("let double = fn(x) { x * 2; }; double(5);", 10),
+            ("let add = fn(x, y) { x + y; }; add(5, 5);", 10),
+            ("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20),
+            ("fn(x) { x; }(5)", 5),
+        ];
+
+        for (input, expected) in cases {
+            let object = test_eval(input.to_string());
+            match object {
+                Object::Integer(actual) => assert_eq!(expected, actual),
+                _ => unreachable!("Got {:?}, but expected Object::Integer.", object),
             }
         }
     }

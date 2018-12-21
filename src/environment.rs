@@ -4,7 +4,13 @@ use std::cell::RefCell;
 use crate::object::Object;
 
 #[derive(Debug)]
-pub(crate) struct Environment(Rc<RefCell<HashMap<String, Object>>>);
+pub(crate) struct Environment(Rc<RefCell<InnerEnvironment>>);
+
+#[derive(Debug)]
+struct InnerEnvironment {
+    store: HashMap<String, Object>,
+    outer: Option<Environment>,
+}
 
 impl Clone for Environment {
     fn clone(&self) -> Self {
@@ -14,14 +20,27 @@ impl Clone for Environment {
 
 impl Environment {
     pub(crate) fn new() -> Self {
-        Environment(Rc::new(RefCell::new(HashMap::new())))
+        Environment(Rc::new(RefCell::new(InnerEnvironment {
+            store: HashMap::new(),
+            outer: None,
+        })))
     }
 
-    pub fn get(&self, key: &str) -> Option<Object> {
-        self.0.borrow().get(key).map(Clone::clone)
+    pub(crate) fn new_enclosed_environment(outer: Environment) -> Self {
+        Environment(Rc::new(RefCell::new(InnerEnvironment {
+            store: HashMap::new(),
+            outer: Some(outer),
+        })))
     }
 
-    pub fn set(&mut self, key: String, val: Object) {
-        self.0.borrow_mut().insert(key, val);
+    pub(crate) fn get(&self, key: &str) -> Option<Object> {
+        let env = self.0.borrow();
+
+        env.store.get(key).map(Clone::clone)
+            .or(env.outer.as_ref().and_then(|outer| outer.get(key)))
+    }
+
+    pub(crate) fn set(&mut self, key: String, val: Object) {
+        self.0.borrow_mut().store.insert(key, val);
     }
 }

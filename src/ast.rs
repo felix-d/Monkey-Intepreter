@@ -51,12 +51,12 @@ pub enum Expression {
         alternative: Option<BlockStatement>,
     },
     FunctionLiteral {
-        parameters: Vec<Identifier>,
+        params: Vec<Identifier>,
         body: BlockStatement,
     },
     CallExpression {
         function: Box<Expression>,
-        arguments: Vec<Expression>,
+        args: Vec<Expression>,
     },
 }
 
@@ -100,14 +100,14 @@ impl Expression {
         }
     }
 
-    pub fn new_function_literal(parameters: Vec<Identifier>, body: BlockStatement) -> Self {
-        Expression::FunctionLiteral { parameters, body }
+    pub fn new_function_literal(params: Vec<Identifier>, body: BlockStatement) -> Self {
+        Expression::FunctionLiteral { params, body }
     }
 
-    pub fn new_call_expression(function: Expression, arguments: Vec<Expression>) -> Self {
+    pub fn new_call_expression(function: Expression, args: Vec<Expression>) -> Self {
         Expression::CallExpression {
             function: Box::new(function),
-            arguments,
+            args,
         }
     }
 }
@@ -163,23 +163,23 @@ impl fmt::Display for Expression {
                     None => Ok(()),
                 }
             }
-            Expression::FunctionLiteral { parameters, body } => {
-                let params = parameters
+            Expression::FunctionLiteral { params, body } => {
+                let params = params
                     .iter()
                     .map(|param| format!("{}", param))
                     .collect::<Vec<Identifier>>();
-                write!(f, "fn ({}) {}", params.join(", "), body)
+                write!(f, "fn ({}) {{{}}}", params.join(", "), body)
             }
             Expression::CallExpression {
                 function,
-                arguments,
+                args,
             } => {
-                let arguments = arguments
+                let args = args
                     .iter()
                     .map(|arg| format!("{}", arg))
                     .collect::<Vec<Identifier>>()
                     .join(", ");
-                write!(f, "{}({})", function, arguments)
+                write!(f, "{}({})", function, args)
             }
         }
     }
@@ -194,6 +194,6 @@ impl fmt::Display for BlockStatement {
             .collect::<Vec<String>>()
             .join("; ");
 
-        write!(f, "{{{}}}", statements)
+        write!(f, "{}", statements)
     }
 }

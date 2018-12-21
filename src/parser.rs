@@ -198,35 +198,35 @@ impl<'a> Parser<'a> {
 
     fn parse_function_literal(&mut self) -> Expression {
         expect_peek!(self, Token::LParen);
-        let parameters = self.parse_function_parameters();
+        let params = self.parse_function_params();
         expect_peek!(self, Token::LBrace);
         let body = self.parse_block_statement();
-        Expression::new_function_literal(parameters, body)
+        Expression::new_function_literal(params, body)
     }
 
-    fn parse_function_parameters(&mut self) -> Vec<Identifier> {
-        let mut parameters = vec![];
+    fn parse_function_params(&mut self) -> Vec<Identifier> {
+        let mut params = vec![];
 
         if self.peek_token == Some(Token::RParen) {
             self.next_token();
-            return parameters;
+            return params;
         }
 
         self.next_token();
 
         let identifier = self.current_token.as_ref().unwrap().literal();
-        parameters.push(identifier);
+        params.push(identifier);
 
         while self.peek_token == Some(Token::Comma) {
             self.next_token();
             self.next_token();
             let identifier = self.current_token.as_ref().unwrap().literal();
-            parameters.push(identifier);
+            params.push(identifier);
         }
 
         expect_peek!(self, Token::RParen);
 
-        parameters
+        params
     }
 
     fn parse_prefix_expression(&mut self, operator: String) -> Expression {
@@ -680,12 +680,12 @@ mod tests {
         for (input, expected) in tests {
             let program = init_program(input);
             match &program.statements[0] {
-                Statement::Expression(Expression::FunctionLiteral { parameters, .. }) => {
+                Statement::Expression(Expression::FunctionLiteral { params, .. }) => {
                     let expected = expected
                         .iter()
                         .map(|lit| lit.to_string())
                         .collect::<Vec<Identifier>>();
-                    assert_eq!(&expected, parameters);
+                    assert_eq!(&expected, params);
                 }
                 _ => panic!(),
             }

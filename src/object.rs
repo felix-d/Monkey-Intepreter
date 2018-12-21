@@ -65,6 +65,15 @@ impl Unwrap<i64> for Object {
     }
 }
 
+impl Unwrap<Object> for Object {
+    fn unwrap(&self) -> Object {
+        match self {
+            Object::ReturnValue(value) => *value.clone(),
+            _ => panic!("{:?} cannot be unwrapped as Object.", self)
+        }
+    }
+}
+
 impl Unwrap<bool> for Object {
     fn unwrap(&self) -> bool {
         match *self {
