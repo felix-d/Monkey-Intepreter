@@ -8,7 +8,7 @@ pub(crate) struct Environment(Rc<RefCell<InnerEnvironment>>);
 
 #[derive(Debug)]
 struct InnerEnvironment {
-    store: HashMap<String, Object>,
+    store: HashMap<String, Rc<Object>>,
     outer: Option<Environment>,
 }
 
@@ -33,14 +33,14 @@ impl Environment {
         })))
     }
 
-    pub(crate) fn get(&self, key: &str) -> Option<Object> {
+    pub(crate) fn get(&self, key: &str) -> Option<Rc<Object>> {
         let env = self.0.borrow();
 
         env.store.get(key).map(Clone::clone)
-            .or(env.outer.as_ref().and_then(|outer| outer.get(key)))
+            .or_else(|| env.outer.as_ref().and_then(|outer| outer.get(key)))
     }
 
-    pub(crate) fn set(&mut self, key: String, val: Object) {
+    pub(crate) fn set(&mut self, key: String, val: Rc<Object>) {
         self.0.borrow_mut().store.insert(key, val);
     }
 }

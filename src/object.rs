@@ -7,48 +7,43 @@ use crate::environment::Environment;
 pub(crate) enum Object {
     Integer(i64),
     Boolean(bool),
-    ReturnValue(Box<Object>),
-    Error(Rc<String>),
+    ReturnValue(Rc<Object>),
+    Error(String),
     Function {
-        params: Rc<Vec<Identifier>>,
-        body: Rc<BlockStatement>,
+        params: Vec<Identifier>,
+        body: BlockStatement,
         env: Environment,
     },
     Null,
 }
 
 impl Object {
-    pub(crate) fn new_integer(integer: i64) -> Self {
-        Object::Integer(integer)
+    pub(crate) fn new_integer(integer: i64) -> Rc<Self> {
+        Rc::new(Object::Integer(integer))
     }
 
-    pub(crate) fn new_return_value(value: Object) -> Self {
-        Object::ReturnValue(Box::new(value))
+    pub(crate) fn new_null() -> Rc<Self> {
+        Rc::new(Object::Null)
     }
 
-    pub(crate) fn new_error(error: String) -> Self {
-        Object::Error(Rc::new(error))
+    pub(crate) fn new_bool(value: bool) -> Rc<Self> {
+        Rc::new(Object::Boolean(value))
     }
 
-    pub(crate) fn new_function(params: Rc<Vec<Identifier>>, body: Rc<BlockStatement>, env: Environment) -> Self {
-        Object::Function {
+    pub(crate) fn new_return_value(value: Rc<Object>) -> Rc<Self> {
+        Rc::new(Object::ReturnValue(value))
+    }
+
+    pub(crate) fn new_error(error: String) -> Rc<Self> {
+        Rc::new(Object::Error(error))
+    }
+
+    pub(crate) fn new_function(params: Vec<Identifier>, body: BlockStatement, env: Environment) -> Rc<Self> {
+        Rc::new(Object::Function {
             params,
             body,
             env,
-        }
-    }
-}
-
-impl Clone for Object {
-    fn clone(&self) -> Self {
-        match self {
-            Object::Integer(value) => Object::Integer(*value),
-            Object::Boolean(value) => Object::Boolean(*value),
-            Object::Error(err) => Object::Error(err.clone()),
-            Object::ReturnValue(value) => Object::ReturnValue(value.clone()),
-            Object::Null => Object::Null,
-            Object::Function { params, body, env } => Object::new_function(params.clone(), body.clone(), env.clone()),
-        }
+        })
     }
 }
 
@@ -58,17 +53,17 @@ pub trait Unwrap<T> {
 
 impl Unwrap<i64> for Object {
     fn unwrap(&self) -> i64 {
-        match *self {
-            Object::Integer(value) => value,
+        match self {
+            Object::Integer(value) => *value,
             _ => panic!("{:?} cannot be unwrapped as i64.", self)
         }
     }
 }
 
-impl Unwrap<Object> for Object {
-    fn unwrap(&self) -> Object {
+impl Unwrap<Rc<Object>> for Object {
+    fn unwrap(&self) -> Rc<Object> {
         match self {
-            Object::ReturnValue(value) => *value.clone(),
+            Object::ReturnValue(value) => value.clone(),
             _ => panic!("{:?} cannot be unwrapped as Object.", self)
         }
     }
@@ -76,8 +71,8 @@ impl Unwrap<Object> for Object {
 
 impl Unwrap<bool> for Object {
     fn unwrap(&self) -> bool {
-        match *self {
-            Object::Boolean(value) => value,
+        match self {
+            Object::Boolean(value) => *value,
             _ => panic!("{:?} cannot be unwrapped as bool.", self)
         }
     }
@@ -118,7 +113,7 @@ impl fmt::Display for Object {
             Object::Null => write!(f, "null"),
             Object::ReturnValue(object) => write!(f, "{}", object),
             Object::Error(error) => write!(f, "{}: {}", self.type_name(), error),
-            Object::Function { params, body, env } => {
+            Object::Function { params, body, .. } => {
                 let params = params.join(", ");
                 write!(f, "fn ({}) {{\n{}\n}}", params, body)
             },

@@ -19,7 +19,8 @@ impl Repl {
     }
 
     fn evalloop() {
-        let mut env = Environment::new();
+        let env = Environment::new();
+
         loop {
             print!("{} ", PROMPT);
             stdout().flush().unwrap();
@@ -29,8 +30,7 @@ impl Repl {
                     let lexer = Lexer::new(&input);
                     let mut parser = Parser::new(lexer);
                     let program = parser.parse_program();
-                    let env = Environment::new();
-                    let evaluated = program.eval(env);
+                    let evaluated = program.eval(env.clone());
                     println!("{}", evaluated);
                 }
                 Err(error) => println!("Error: {}", error),

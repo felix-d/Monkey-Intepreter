@@ -1,5 +1,16 @@
 use std::fmt;
 
+pub(crate) enum Operator {
+    Plus,
+    Minus,
+    Division,
+    Multiplication,
+    LessThan,
+    GreaterThan,
+    Equal,
+    NotEqual,
+}
+
 #[derive(Debug)]
 pub struct Program {
     pub statements: Vec<Statement>,
@@ -7,7 +18,7 @@ pub struct Program {
 
 pub type Identifier = String;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Let { name: Identifier, value: Expression },
     Return(Expression),
@@ -31,7 +42,7 @@ impl Statement {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     IntegerLiteral(i64),
     Identifier(Identifier),
@@ -112,7 +123,7 @@ impl Expression {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct BlockStatement(pub Vec<Statement>);
 
 impl BlockStatement {
@@ -166,7 +177,7 @@ impl fmt::Display for Expression {
             Expression::FunctionLiteral { params, body } => {
                 let params = params
                     .iter()
-                    .map(|param| format!("{}", param))
+                    .map(ToString::to_string)
                     .collect::<Vec<Identifier>>();
                 write!(f, "fn ({}) {{{}}}", params.join(", "), body)
             }
