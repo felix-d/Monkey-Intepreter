@@ -1,59 +1,117 @@
+use crate::token::Token;
 use std::fmt;
 
-pub(crate) enum Operator {
-    Plus,
-    Minus,
-    Division,
-    Multiplication,
+impl Into<InfixOperator> for &Token {
+    fn into(self) -> InfixOperator {
+        match self {
+            Token::Plus => InfixOperator::Add,
+            Token::Minus => InfixOperator::Sub,
+            Token::Slash => InfixOperator::Div,
+            Token::Asterik => InfixOperator::Mult,
+            Token::Equal => InfixOperator::Eq,
+            Token::NotEqual => InfixOperator::NotEq,
+            Token::Gt => InfixOperator::GreaterThan,
+            Token::Lt => InfixOperator::LessThan,
+            unknown => unreachable!("unknown token: {:?}", unknown),
+        }
+    }
+}
+
+impl Into<PrefixOperator> for &Token {
+    fn into(self) -> PrefixOperator {
+        match self {
+            Token::Minus => PrefixOperator::Neg,
+            Token::Bang => PrefixOperator::Not,
+            unknown => unreachable!("unknown token: {:?}", unknown),
+        }
+    }
+}
+
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub(crate) enum InfixOperator {
+    Add,
+    Sub,
+    Div,
+    Mult,
     LessThan,
     GreaterThan,
-    Equal,
-    NotEqual,
+    Eq,
+    NotEq,
+}
+
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub(crate) enum PrefixOperator {
+    Not,
+    Neg,
+}
+
+impl fmt::Display for InfixOperator {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            InfixOperator::Add => write!(f, "+"),
+            InfixOperator::Sub => write!(f, "-"),
+            InfixOperator::Div => write!(f, "/"),
+            InfixOperator::Mult => write!(f, "*"),
+            InfixOperator::LessThan => write!(f, "<"),
+            InfixOperator::GreaterThan => write!(f, ">"),
+            InfixOperator::Eq => write!(f, "=="),
+            InfixOperator::NotEq => write!(f, "!="),
+        }
+    }
+}
+
+impl fmt::Display for PrefixOperator {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            PrefixOperator::Not => write!(f, "!"),
+            PrefixOperator::Neg => write!(f, "-"),
+        }
+    }
 }
 
 #[derive(Debug)]
-pub struct Program {
+pub(crate) struct Program {
     pub statements: Vec<Statement>,
 }
 
-pub type Identifier = String;
+pub(crate) type Identifier = String;
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Statement {
+pub(crate) enum Statement {
     Let { name: Identifier, value: Expression },
     Return(Expression),
     Expression(Expression),
 }
 
 impl Statement {
-    pub fn new_let(identifier: &str, value: Expression) -> Self {
+    pub(crate) fn new_let(identifier: &str, value: Expression) -> Self {
         Statement::Let {
             name: String::from(identifier),
             value,
         }
     }
 
-    pub fn new_return(return_value: Expression) -> Self {
+    pub(crate) fn new_return(return_value: Expression) -> Self {
         Statement::Return(return_value)
     }
 
-    pub fn new_expression(expression: Expression) -> Self {
+    pub(crate) fn new_expression(expression: Expression) -> Self {
         Statement::Expression(expression)
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Expression {
+pub(crate) enum Expression {
     IntegerLiteral(i64),
     Identifier(Identifier),
     Prefix {
-        operator: String,
+        operator: PrefixOperator,
         right: Box<Expression>,
     },
     Infix {
         left: Box<Expression>,
         right: Box<Expression>,
-        operator: String,
+        operator: InfixOperator,
     },
     Boolean(bool),
     IfExpression {
@@ -72,34 +130,40 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn new_integer(value: i64) -> Expression {
+    pub(crate) fn new_integer(value: i64) -> Expression {
         Expression::IntegerLiteral(value)
     }
 
-    pub fn new_identifier(value: &str) -> Self {
+    pub(crate) fn new_identifier(value: &str) -> Self {
         Expression::Identifier(String::from(value))
     }
 
-    pub fn new_prefix(operator: &str, right: Expression) -> Self {
+    pub(crate) fn new_prefix<T>(operator: T, right: Expression) -> Self
+    where
+        T: Into<PrefixOperator>,
+    {
         Expression::Prefix {
-            operator: String::from(operator),
+            operator: operator.into(),
             right: Box::new(right),
         }
     }
 
-    pub fn new_infix(operator: &str, left: Expression, right: Expression) -> Self {
+    pub(crate) fn new_infix<T>(operator: T, left: Expression, right: Expression) -> Self
+    where
+        T: Into<InfixOperator>,
+    {
         Expression::Infix {
             left: Box::new(left),
             right: Box::new(right),
-            operator: String::from(operator),
+            operator: operator.into(),
         }
     }
 
-    pub fn new_boolean(value: bool) -> Self {
+    pub(crate) fn new_boolean(value: bool) -> Self {
         Expression::Boolean(value)
     }
 
-    pub fn new_if(
+    pub(crate) fn new_if(
         condition: Expression,
         consequence: BlockStatement,
         alternative: Option<BlockStatement>,
@@ -111,11 +175,11 @@ impl Expression {
         }
     }
 
-    pub fn new_function_literal(params: Vec<Identifier>, body: BlockStatement) -> Self {
+    pub(crate) fn new_function_literal(params: Vec<Identifier>, body: BlockStatement) -> Self {
         Expression::FunctionLiteral { params, body }
     }
 
-    pub fn new_call_expression(function: Expression, args: Vec<Expression>) -> Self {
+    pub(crate) fn new_call_expression(function: Expression, args: Vec<Expression>) -> Self {
         Expression::CallExpression {
             function: Box::new(function),
             args,
@@ -124,10 +188,10 @@ impl Expression {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct BlockStatement(pub Vec<Statement>);
+pub(crate) struct BlockStatement(pub Vec<Statement>);
 
 impl BlockStatement {
-    pub fn new(statements: Vec<Statement>) -> Self {
+    pub(crate) fn new(statements: Vec<Statement>) -> Self {
         BlockStatement(statements)
     }
 }
@@ -181,10 +245,7 @@ impl fmt::Display for Expression {
                     .collect::<Vec<Identifier>>();
                 write!(f, "fn ({}) {{{}}}", params.join(", "), body)
             }
-            Expression::CallExpression {
-                function,
-                args,
-            } => {
+            Expression::CallExpression { function, args } => {
                 let args = args
                     .iter()
                     .map(|arg| format!("{}", arg))

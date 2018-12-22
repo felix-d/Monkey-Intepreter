@@ -1,4 +1,6 @@
-use crate::ast::{BlockStatement, Expression, Identifier, Program, Statement};
+use crate::ast::{
+    BlockStatement, Expression, Identifier, InfixOperator, PrefixOperator, Program, Statement,
+};
 use crate::environment::Environment;
 use crate::object::{Object, Unwrap};
 use std::rc::Rc;
@@ -75,7 +77,7 @@ impl Eval for Expression {
             Expression::Prefix { operator, right } => {
                 let right = right.eval(env);
                 check_err!(right);
-                eval_prefix_expression(operator.clone(), right)
+                eval_prefix_expression(*operator, right)
             }
             Expression::Infix {
                 left,
@@ -88,7 +90,7 @@ impl Eval for Expression {
                 let right = right.eval(env);
                 check_err!(right);
 
-                eval_infix_expression(operator.clone(), left, right)
+                eval_infix_expression(operator, left, right)
             }
             Expression::Boolean(true) => Object::new_bool(true),
             Expression::Boolean(false) => Object::new_bool(false),
@@ -189,19 +191,18 @@ fn is_truthy(val: Rc<Object>) -> bool {
     }
 }
 
-fn eval_prefix_expression(operator: String, right: Rc<Object>) -> Rc<Object> {
-    match operator.as_ref() {
-        "!" => eval_bang_expression(right),
-        "-" => eval_minus_prefix_expression(right),
-        _ => Object::new_error(format!(
-            "unknown operator: {}{}",
-            operator,
-            right.type_name()
-        )),
+fn eval_prefix_expression(operator: PrefixOperator, right: Rc<Object>) -> Rc<Object> {
+    match operator {
+        PrefixOperator::Not => eval_bang_expression(right),
+        PrefixOperator::Neg => eval_minus_prefix_expression(right),
     }
 }
 
-fn eval_infix_expression(operator: String, left: Rc<Object>, right: Rc<Object>) -> Rc<Object> {
+fn eval_infix_expression(
+    operator: &InfixOperator,
+    left: Rc<Object>,
+    right: Rc<Object>,
+) -> Rc<Object> {
     if left.is_integer() && right.is_integer() {
         return eval_infix_integer_expression(operator, left, right);
     }
@@ -219,38 +220,36 @@ fn eval_infix_expression(operator: String, left: Rc<Object>, right: Rc<Object>) 
 }
 
 fn eval_infix_integer_expression(
-    operator: String,
+    operator: &InfixOperator,
     left: Rc<Object>,
     right: Rc<Object>,
 ) -> Rc<Object> {
     let left_val: i64 = left.unwrap();
     let right_val: i64 = right.unwrap();
 
-    match operator.as_ref() {
-        "+" => Object::new_integer(left_val + right_val),
-        "-" => Object::new_integer(left_val - right_val),
-        "/" => Object::new_integer(left_val / right_val),
-        "*" => Object::new_integer(left_val * right_val),
-        "<" => Object::new_bool(left_val < right_val),
-        ">" => Object::new_bool(left_val > right_val),
-        "==" => Object::new_bool(left_val == right_val),
-        "!=" => Object::new_bool(left_val != right_val),
-        _ => Object::new_error(format!(
-            "unknown operator: {} {} {}",
-            left.type_name(),
-            operator,
-            right.type_name(),
-        )),
+    match operator {
+        InfixOperator::Add => Object::new_integer(left_val + right_val),
+        InfixOperator::Sub => Object::new_integer(left_val - right_val),
+        InfixOperator::Div => Object::new_integer(left_val / right_val),
+        InfixOperator::Mult => Object::new_integer(left_val * right_val),
+        InfixOperator::LessThan => Object::new_bool(left_val < right_val),
+        InfixOperator::GreaterThan => Object::new_bool(left_val > right_val),
+        InfixOperator::Eq => Object::new_bool(left_val == right_val),
+        InfixOperator::NotEq => Object::new_bool(left_val != right_val),
     }
 }
 
-fn eval_infix_bool_expression(operator: String, left: Rc<Object>, right: Rc<Object>) -> Rc<Object> {
+fn eval_infix_bool_expression(
+    operator: &InfixOperator,
+    left: Rc<Object>,
+    right: Rc<Object>,
+) -> Rc<Object> {
     let left_val: bool = left.unwrap();
     let right_val: bool = right.unwrap();
 
-    match operator.as_ref() {
-        "==" => Object::new_bool(left_val == right_val),
-        "!=" => Object::new_bool(left_val != right_val),
+    match operator {
+        InfixOperator::Eq => Object::new_bool(left_val == right_val),
+        InfixOperator::NotEq => Object::new_bool(left_val != right_val),
         _ => Object::new_error(format!(
             "unknown operator: {} {} {}",
             left.type_name(),
@@ -504,11 +503,11 @@ mod tests {
     fn test_function_application() {
         let cases = vec![
             ("let identity = fn(x) { x; }; identity(5);", 5),
-            // ("let identity = fn(x) { return x; }; identity(5);", 5),
-            // ("let double = fn(x) { x * 2; }; double(5);", 10),
-            // ("let add = fn(x, y) { x + y; }; add(5, 5);", 10),
-            // ("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20),
-            // ("fn(x) { x; }(5)", 5),
+            ("let identity = fn(x) { return x; }; identity(5);", 5),
+            ("let double = fn(x) { x * 2; }; double(5);", 10),
+            ("let add = fn(x, y) { x + y; }; add(5, 5);", 10),
+            ("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20),
+            ("fn(x) { x; }(5)", 5),
         ];
 
         for (input, expected) in cases {

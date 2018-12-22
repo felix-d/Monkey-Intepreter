@@ -1,4 +1,4 @@
-use crate::ast::{BlockStatement, Expression, Identifier, Program, Statement};
+use crate::ast::{PrefixOperator, InfixOperator, BlockStatement, Expression, Identifier, Program, Statement};
 use crate::lexer::Lexer;
 use crate::token::Token;
 
@@ -162,8 +162,8 @@ impl<'a> Parser<'a> {
             Token::LParen => self.parse_grouped_expression(),
             Token::Ident(_) => Expression::new_identifier(&literal),
             Token::Int(_) => Expression::new_integer(literal.parse().unwrap()),
-            Token::Bang => self.parse_prefix_expression(literal),
-            Token::Minus => self.parse_prefix_expression(literal),
+            Token::Bang => self.parse_prefix_expression(PrefixOperator::Not),
+            Token::Minus => self.parse_prefix_expression(PrefixOperator::Neg),
             Token::True => Expression::new_boolean(true),
             Token::False => Expression::new_boolean(false),
             _ => panic!(),
@@ -229,11 +229,11 @@ impl<'a> Parser<'a> {
         params
     }
 
-    fn parse_prefix_expression(&mut self, operator: String) -> Expression {
+    fn parse_prefix_expression(&mut self, operator: PrefixOperator) -> Expression {
         self.next_token();
 
         match self.current_token {
-            Some(_) => Expression::new_prefix(&operator, self.parse_expression(Precedence::Prefix)),
+            Some(_) => Expression::new_prefix(operator, self.parse_expression(Precedence::Prefix)),
             None => panic!(),
         }
     }
@@ -286,12 +286,13 @@ impl<'a> Parser<'a> {
 
     fn parse_infix_expression(&mut self, left: Expression) -> Expression {
         let precedence = self.current_precedence();
-        let operator = self.current_token.as_ref().unwrap().literal();
+        let operator: InfixOperator = self.current_token.as_ref().unwrap().into();
+
         self.next_token();
 
         let right = self.parse_expression(precedence);
 
-        Expression::new_infix(&operator, left, right)
+        Expression::new_infix(operator, left, right)
     }
 
     fn parse_expression_statement(&mut self) -> Statement {
@@ -307,7 +308,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::{BlockStatement, Expression, Identifier, Program, Statement};
+    use crate::ast::{InfixOperator, PrefixOperator, BlockStatement, Expression, Identifier, Program, Statement};
     use crate::lexer::Lexer;
     use crate::parser::Parser;
 
@@ -410,19 +411,19 @@ mod tests {
         let program = init_program(input);
 
         assert_eq!(
-            Statement::new_expression(Expression::new_prefix("!", Expression::new_integer(5))),
+            Statement::new_expression(Expression::new_prefix(PrefixOperator::Not, Expression::new_integer(5))),
             program.statements[0]
         );
         assert_eq!(
-            Statement::new_expression(Expression::new_prefix("-", Expression::new_integer(15))),
+            Statement::new_expression(Expression::new_prefix(PrefixOperator::Neg, Expression::new_integer(15))),
             program.statements[1]
         );
         assert_eq!(
-            Statement::new_expression(Expression::new_prefix("!", Expression::new_boolean(true))),
+            Statement::new_expression(Expression::new_prefix(PrefixOperator::Not, Expression::new_boolean(true))),
             program.statements[2]
         );
         assert_eq!(
-            Statement::new_expression(Expression::new_prefix("!", Expression::new_boolean(false))),
+            Statement::new_expression(Expression::new_prefix(PrefixOperator::Not, Expression::new_boolean(false))),
             program.statements[3]
         );
     }
@@ -447,7 +448,7 @@ mod tests {
 
         assert_eq!(
             Statement::new_expression(Expression::new_infix(
-                "+",
+                InfixOperator::Add,
                 Expression::new_integer(5),
                 Expression::new_integer(5)
             )),
@@ -455,7 +456,7 @@ mod tests {
         );
         assert_eq!(
             Statement::new_expression(Expression::new_infix(
-                "-",
+                InfixOperator::Sub,
                 Expression::new_integer(5),
                 Expression::new_integer(5)
             )),
@@ -463,7 +464,7 @@ mod tests {
         );
         assert_eq!(
             Statement::new_expression(Expression::new_infix(
-                "*",
+                InfixOperator::Mult,
                 Expression::new_integer(5),
                 Expression::new_integer(5)
             )),
@@ -471,7 +472,7 @@ mod tests {
         );
         assert_eq!(
             Statement::new_expression(Expression::new_infix(
-                "/",
+                InfixOperator::Div,
                 Expression::new_integer(5),
                 Expression::new_integer(5)
             )),
@@ -479,7 +480,7 @@ mod tests {
         );
         assert_eq!(
             Statement::new_expression(Expression::new_infix(
-                ">",
+                InfixOperator::GreaterThan,
                 Expression::new_integer(5),
                 Expression::new_integer(5)
             )),
@@ -487,7 +488,7 @@ mod tests {
         );
         assert_eq!(
             Statement::new_expression(Expression::new_infix(
-                "<",
+                InfixOperator::LessThan,
                 Expression::new_integer(5),
                 Expression::new_integer(5)
             )),
@@ -495,7 +496,7 @@ mod tests {
         );
         assert_eq!(
             Statement::new_expression(Expression::new_infix(
-                "==",
+                InfixOperator::Eq,
                 Expression::new_integer(5),
                 Expression::new_integer(5)
             )),
@@ -503,7 +504,7 @@ mod tests {
         );
         assert_eq!(
             Statement::new_expression(Expression::new_infix(
-                "!=",
+                InfixOperator::NotEq,
                 Expression::new_integer(5),
                 Expression::new_integer(5)
             )),
@@ -511,7 +512,7 @@ mod tests {
         );
         assert_eq!(
             Statement::new_expression(Expression::new_infix(
-                "==",
+                InfixOperator::Eq,
                 Expression::new_boolean(true),
                 Expression::new_boolean(false)
             )),
@@ -519,7 +520,7 @@ mod tests {
         );
         assert_eq!(
             Statement::new_expression(Expression::new_infix(
-                "!=",
+                InfixOperator::NotEq,
                 Expression::new_boolean(true),
                 Expression::new_boolean(false)
             )),
@@ -527,7 +528,7 @@ mod tests {
         );
         assert_eq!(
             Statement::new_expression(Expression::new_infix(
-                "==",
+                InfixOperator::Eq,
                 Expression::new_boolean(false),
                 Expression::new_boolean(false)
             )),
@@ -614,7 +615,7 @@ mod tests {
         assert_eq!(
             Statement::new_expression(Expression::new_if(
                 Expression::new_infix(
-                    "<",
+                    InfixOperator::LessThan,
                     Expression::new_identifier("x"),
                     Expression::new_identifier("y")
                 ),
@@ -636,7 +637,7 @@ mod tests {
         assert_eq!(
             Statement::new_expression(Expression::new_if(
                 Expression::new_infix(
-                    "<",
+                    InfixOperator::LessThan,
                     Expression::new_identifier("x"),
                     Expression::new_identifier("y")
                 ),
@@ -660,7 +661,7 @@ mod tests {
             Statement::new_expression(Expression::new_function_literal(
                 vec!["x".to_owned(), "y".to_owned(),],
                 BlockStatement::new(vec![Statement::new_expression(Expression::new_infix(
-                    "+",
+                    InfixOperator::Add,
                     Expression::new_identifier("x"),
                     Expression::new_identifier("y"),
                 ))])
@@ -703,12 +704,12 @@ mod tests {
                 vec![
                     Expression::new_integer(1),
                     Expression::new_infix(
-                        "*",
+                        InfixOperator::Mult,
                         Expression::new_integer(2),
                         Expression::new_integer(3),
                     ),
                     Expression::new_infix(
-                        "+",
+                        InfixOperator::Add,
                         Expression::new_integer(4),
                         Expression::new_integer(5),
                     ),
