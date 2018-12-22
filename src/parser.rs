@@ -686,7 +686,7 @@ mod tests {
                         .iter()
                         .map(|lit| lit.to_string())
                         .collect::<Vec<Identifier>>();
-                    assert_eq!(&expected, params);
+                    assert_eq!(expected, **params);
                 }
                 _ => panic!(),
             }

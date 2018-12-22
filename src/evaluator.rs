@@ -37,7 +37,6 @@ impl Eval for Program {
 impl Eval for BlockStatement {
     fn eval(&self, env: Environment) -> Object {
         let mut result = Object::new_null();
-
         for statement in &self.0 {
             result = statement.eval(env.clone());
             match *result {
@@ -45,7 +44,6 @@ impl Eval for BlockStatement {
                 _ => (),
             }
         }
-
         result
     }
 }

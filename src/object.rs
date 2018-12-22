@@ -14,8 +14,8 @@ pub(crate) enum ObjectType {
     ReturnValue(Object),
     Error(String),
     Function {
-        params: Vec<Identifier>,
-        body: BlockStatement,
+        params: Rc<Vec<Identifier>>,
+        body: Rc<BlockStatement>,
         env: Environment,
     },
     Null,
@@ -42,7 +42,7 @@ impl Object {
         Object(Rc::new(ObjectType::Error(error)))
     }
 
-    pub(crate) fn new_function(params: Vec<Identifier>, body: BlockStatement, env: Environment) -> Self {
+    pub(crate) fn new_function(params: Rc<Vec<Identifier>>, body: Rc<BlockStatement>, env: Environment) -> Self {
         Object(Rc::new(ObjectType::Function {
             params,
             body,

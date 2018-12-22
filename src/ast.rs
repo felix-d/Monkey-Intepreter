@@ -1,5 +1,6 @@
 use crate::token::Token;
 use std::fmt;
+use std::rc::Rc;
 
 impl Into<InfixOperator> for &Token {
     fn into(self) -> InfixOperator {
@@ -76,7 +77,7 @@ pub(crate) struct Program {
 
 pub(crate) type Identifier = String;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub(crate) enum Statement {
     Let { name: Identifier, value: Expression },
     Return(Expression),
@@ -100,7 +101,7 @@ impl Statement {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub(crate) enum Expression {
     IntegerLiteral(i64),
     Identifier(Identifier),
@@ -120,8 +121,8 @@ pub(crate) enum Expression {
         alternative: Option<BlockStatement>,
     },
     FunctionLiteral {
-        params: Vec<Identifier>,
-        body: BlockStatement,
+        params: Rc<Vec<Identifier>>,
+        body: Rc<BlockStatement>,
     },
     Call {
         function: Box<Expression>,
@@ -176,7 +177,7 @@ impl Expression {
     }
 
     pub(crate) fn new_function_literal(params: Vec<Identifier>, body: BlockStatement) -> Self {
-        Expression::FunctionLiteral { params, body }
+        Expression::FunctionLiteral { params: Rc::new(params), body: Rc::new(body) }
     }
 
     pub(crate) fn new_call_expression(function: Expression, args: Vec<Expression>) -> Self {
@@ -187,7 +188,7 @@ impl Expression {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub(crate) struct BlockStatement(pub Vec<Statement>);
 
 impl BlockStatement {
