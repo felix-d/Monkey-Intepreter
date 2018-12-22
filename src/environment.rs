@@ -3,19 +3,13 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use crate::object::Object;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Environment(Rc<RefCell<InnerEnvironment>>);
 
 #[derive(Debug)]
 struct InnerEnvironment {
     store: HashMap<String, Rc<Object>>,
     outer: Option<Environment>,
-}
-
-impl Clone for Environment {
-    fn clone(&self) -> Self {
-        Environment(self.0.clone())
-    }
 }
 
 impl Environment {

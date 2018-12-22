@@ -90,11 +90,11 @@ impl Eval for Expression {
                 let right = right.eval(env);
                 check_err!(right);
 
-                eval_infix_expression(operator, left, right)
+                eval_infix_expression(*operator, left, right)
             }
             Expression::Boolean(true) => Object::new_bool(true),
             Expression::Boolean(false) => Object::new_bool(false),
-            Expression::IfExpression {
+            Expression::If {
                 condition,
                 consequence,
                 alternative,
@@ -103,7 +103,7 @@ impl Eval for Expression {
             Expression::FunctionLiteral { params, body } => {
                 Object::new_function(params.clone(), body.clone(), env.clone())
             }
-            Expression::CallExpression { function, args } => {
+            Expression::Call { function, args } => {
                 let value = function.eval(env.clone());
                 check_err!(value);
 
@@ -199,7 +199,7 @@ fn eval_prefix_expression(operator: PrefixOperator, right: Rc<Object>) -> Rc<Obj
 }
 
 fn eval_infix_expression(
-    operator: &InfixOperator,
+    operator: InfixOperator,
     left: Rc<Object>,
     right: Rc<Object>,
 ) -> Rc<Object> {
@@ -220,7 +220,7 @@ fn eval_infix_expression(
 }
 
 fn eval_infix_integer_expression(
-    operator: &InfixOperator,
+    operator: InfixOperator,
     left: Rc<Object>,
     right: Rc<Object>,
 ) -> Rc<Object> {
@@ -240,7 +240,7 @@ fn eval_infix_integer_expression(
 }
 
 fn eval_infix_bool_expression(
-    operator: &InfixOperator,
+    operator: InfixOperator,
     left: Rc<Object>,
     right: Rc<Object>,
 ) -> Rc<Object> {

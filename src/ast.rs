@@ -114,7 +114,7 @@ pub(crate) enum Expression {
         operator: InfixOperator,
     },
     Boolean(bool),
-    IfExpression {
+    If {
         condition: Box<Expression>,
         consequence: BlockStatement,
         alternative: Option<BlockStatement>,
@@ -123,7 +123,7 @@ pub(crate) enum Expression {
         params: Vec<Identifier>,
         body: BlockStatement,
     },
-    CallExpression {
+    Call {
         function: Box<Expression>,
         args: Vec<Expression>,
     },
@@ -168,7 +168,7 @@ impl Expression {
         consequence: BlockStatement,
         alternative: Option<BlockStatement>,
     ) -> Self {
-        Expression::IfExpression {
+        Expression::If {
             condition: Box::new(condition),
             consequence,
             alternative,
@@ -180,7 +180,7 @@ impl Expression {
     }
 
     pub(crate) fn new_call_expression(function: Expression, args: Vec<Expression>) -> Self {
-        Expression::CallExpression {
+        Expression::Call {
             function: Box::new(function),
             args,
         }
@@ -227,7 +227,7 @@ impl fmt::Display for Expression {
                 operator,
             } => write!(f, "({} {} {})", left, operator, right),
             Expression::Boolean(value) => write!(f, "{}", value),
-            Expression::IfExpression {
+            Expression::If {
                 condition,
                 consequence,
                 alternative,
@@ -245,7 +245,7 @@ impl fmt::Display for Expression {
                     .collect::<Vec<Identifier>>();
                 write!(f, "fn ({}) {{{}}}", params.join(", "), body)
             }
-            Expression::CallExpression { function, args } => {
+            Expression::Call { function, args } => {
                 let args = args
                     .iter()
                     .map(|arg| format!("{}", arg))
